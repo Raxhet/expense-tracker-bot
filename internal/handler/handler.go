@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/Raxhet/expense-tracker-bot/internal/model"
 	"github.com/Raxhet/expense-tracker-bot/internal/storage"
@@ -70,7 +71,10 @@ func (h *Handler) handleExpenseCommand(msg *tgbotapi.Message) {
 		Type:     model.Expense,
 	}
 
-	err = h.storage.AddTransaction(context.Background(), tx)
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*10)
+	defer cancel()
+
+	err = h.storage.AddTransaction(ctx, tx)
 
 	if err != nil {
 		h.sendMessage(msg.Chat.ID, "Ошибка добавления :(")
