@@ -3,6 +3,7 @@ package handler
 import (
 	"context"
 	"fmt"
+	"github.com/Raxhet/expense-tracker-bot/internal/state"
 	"log"
 	"log/slog"
 	"strconv"
@@ -39,19 +40,50 @@ func (h *Handler) StartPolling() {
 }
 
 func (h *Handler) handleMessage(msg *tgbotapi.Message) {
-	switch {
+	s := state.GetSession(msg.Chat.ID)
+	log.Printf("Chat ID: %v", msg.Chat.ID)
+	switch { // TODO: доход
 	case strings.HasPrefix(msg.Text, "/расход"):
-		h.handleExpenseCommand(msg)
-	case strings.HasPrefix(msg.Text, "/категория"):
-		h.handleCategoryCommand(msg)
+		s.Step = state.AwaitingAmount
+		s.Type = model.Expense
+		h.sendMessage(msg.Chat.ID, "Введите сумму расхода: ")
+	case s.Step == state.AwaitingAmount:
+		h.handleStepAmount(msg)
+	case s.Step == state.AwaitingCategory:
+		h.handleStepCategory(msg)
 	default:
-		h.sendMessage(msg.Chat.ID, "Напиши /расход <сумма> <категория>")
+		h.sendMessage(msg.Chat.ID, "Напиши /расход или /доход")
 	}
+}
+
+func (h *Handler) handleStepAmount(msg *tgbotapi.Message) {
+	s := state.GetSession(msg.Chat.ID)
+	amount, err := strconv.ParseFloat(msg.Text, 64)
+	if err != nil {
+		h.sendMessage(msg.Chat.ID, "ЕБЛАН, ВВЕДИ ЧИСЛО")
+		return
+	}
+	s.TempAmount = amount
+	s.Step = state.AwaitingCategory
+
+	h.showCategoryKeyboard(msg.Chat.ID) // test
+}
+
+func (h *Handler) handleStepCategory(msg *tgbotapi.Message) {
+	s := state.GetSession(msg.Chat.ID)
+	_ = s
+	log.Printf("GOOD: %+v", s)
+	s.Step = state.Idle
 }
 
 func (h *Handler) handleExpenseCommand(msg *tgbotapi.Message) {
 	args := strings.Fields(msg.Text)
 	log.Printf("ARGS: %v", args) // logs
+
+	if len(args) == 1 {
+
+	}
+
 	if len(args) < 3 {
 		h.sendMessage(msg.Chat.ID, "Неверный формат. Пример: /расход 100 еда")
 		return
@@ -115,4 +147,39 @@ func (h *Handler) sendMessage(chatID int64, text string) {
 	if err != nil {
 		slog.Error(err.Error())
 	}
+}
+
+func (h *Handler) showCategoryKeyboard(chatID int64) {
+	ctg, err := h.storage.GetUserCategories(context.Background(), chatID)
+	log.Printf("CTG: %+v, CHAT ID: %v", ctg, chatID)
+	if err != nil {
+		log.Printf("ERROR: %v", err)
+		return
+	}
+	if len(ctg) == 0 {
+		h.sendMessage(chatID, "У вас пока нет категорий. Добавьте командой /команда <название>")
+		return
+	}
+
+	var rows [][]tgbotapi.KeyboardButton
+	var row []tgbotapi.KeyboardButton
+
+	for i, category := range ctg {
+		btn := tgbotapi.NewKeyboardButton(category.Name)
+		row = append(row, btn)
+
+		if (i+1)%2 == 0 {
+			rows = append(rows, row)
+		}
+	}
+
+	if len(row) > 0 {
+		rows = append(rows, row)
+	}
+
+	keyboard := tgbotapi.NewReplyKeyboard(rows...)
+	msg := tgbotapi.NewMessage(chatID, "Выберите категорию и напишите сумму")
+	msg.ReplyMarkup = keyboard
+
+	h.bot.Send(msg)
 }

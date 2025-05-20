@@ -46,11 +46,7 @@ func (s *Storage) AddCategory(ctx context.Context, ctg model.Category) error {
 }
 
 func (s *Storage) GetUserCategories(ctx context.Context, userID int64) ([]model.Category, error) {
-	rows, err := s.conn.Query(
-		ctx,
-		"SELECT * FROM categories WHERE user_id = $1",
-		userID,
-	)
+	rows, err := s.conn.Query(ctx, `SELECT id, name FROM categories WHERE user_id = $1`, userID)
 	if err != nil {
 		return nil, err
 	}
@@ -59,6 +55,7 @@ func (s *Storage) GetUserCategories(ctx context.Context, userID int64) ([]model.
 	var categories []model.Category
 	for rows.Next() {
 		var c model.Category
+		c.UserID = userID
 		if err := rows.Scan(&c.UserID, &c.Name); err != nil {
 			return nil, err
 		}
