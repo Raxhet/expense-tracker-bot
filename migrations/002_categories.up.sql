@@ -1,0 +1,5 @@
+CREATE TABLE IF NOT EXISTS categories (
+    id SERIAL PRIMARY KEY,
+    user_id BIGINT NOT NULL,
+    name TEXT NOT NULL
+);

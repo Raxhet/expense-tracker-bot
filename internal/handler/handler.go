@@ -38,11 +38,12 @@ func (h *Handler) StartPolling() {
 	}
 }
 
-// реагирует просто на start, можно добавить switch/case для обработки необходимых команд
 func (h *Handler) handleMessage(msg *tgbotapi.Message) {
 	switch {
 	case strings.HasPrefix(msg.Text, "/расход"):
 		h.handleExpenseCommand(msg)
+	case strings.HasPrefix(msg.Text, "/категория"):
+		h.handleCategoryCommand(msg)
 	default:
 		h.sendMessage(msg.Chat.ID, "Напиши /расход <сумма> <категория>")
 	}
@@ -71,7 +72,7 @@ func (h *Handler) handleExpenseCommand(msg *tgbotapi.Message) {
 		Type:     model.Expense,
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second*10)
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
 
 	err = h.storage.AddTransaction(ctx, tx)
@@ -84,6 +85,28 @@ func (h *Handler) handleExpenseCommand(msg *tgbotapi.Message) {
 
 	h.sendMessage(msg.Chat.ID, fmt.Sprintf("Расход %.2f RUB в категории '%s' сохранен!", amount, category))
 
+}
+
+func (h *Handler) handleCategoryCommand(msg *tgbotapi.Message) {
+	args := strings.Fields(msg.Text)
+	log.Printf("ARGS category: %v", args)
+	if len(args) < 2 {
+		h.sendMessage(msg.Chat.ID, "Формат: /категория <название>")
+		return
+	}
+	name := strings.Join(args[1:], " ")
+	ctg := model.Category{
+		UserID: msg.Chat.ID,
+		Name:   name,
+	}
+	err := h.storage.AddCategory(context.Background(), ctg)
+	if err != nil {
+		h.sendMessage(msg.Chat.ID, "Не удалось добавить категорию")
+		log.Printf("Ошибка сохранения категории: %v", err)
+		return
+	}
+
+	h.sendMessage(msg.Chat.ID, fmt.Sprintf("Категория '%s' добавлена!", name))
 }
 
 func (h *Handler) sendMessage(chatID int64, text string) {

@@ -38,3 +38,31 @@ func (s *Storage) AddTransaction(ctx context.Context, tx model.Transaction) erro
 	_, err := s.conn.Exec(ctx, query, tx.UserID, tx.Amount, tx.Category, tx.Type)
 	return err
 }
+
+func (s *Storage) AddCategory(ctx context.Context, ctg model.Category) error {
+	query := `INSERT INTO categories (user_id, name) VALUES ($1, $2)`
+	_, err := s.conn.Exec(ctx, query, ctg.UserID, ctg.Name)
+	return err
+}
+
+func (s *Storage) GetUserCategories(ctx context.Context, userID int64) ([]model.Category, error) {
+	rows, err := s.conn.Query(
+		ctx,
+		"SELECT * FROM categories WHERE user_id = $1",
+		userID,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var categories []model.Category
+	for rows.Next() {
+		var c model.Category
+		if err := rows.Scan(&c.UserID, &c.Name); err != nil {
+			return nil, err
+		}
+		categories = append(categories, c)
+	}
+	return categories, nil
+}
